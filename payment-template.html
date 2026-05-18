@@ -1,0 +1,995 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Payment</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Outfit:wght@300;400;500;600&display=swap');
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #f5f3ef;
+        --white: #ffffff;
+        --dark: #1a1814;
+        --mid: #6b6560;
+        --line: #e8e4de;
+        --accent: #c8a96e;
+        --accent2: #2d5a4e;
+        --red: #d94f4f;
+        --green: #2d8c6a;
+        --serif: 'Playfair Display', Georgia, serif;
+        --sans: 'Outfit', sans-serif;
+        --radius: 18px;
+        --shadow: 0 8px 40px rgba(26, 24, 20, 0.1);
+      }
+
+      html,
+      body {
+        min-height: 100vh;
+        background: var(--bg);
+        font-family: var(--sans);
+        color: var(--dark);
+      }
+
+      /* subtle grain overlay */
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+        pointer-events: none;
+      }
+
+      /* ── layout ── */
+      .page {
+        position: relative;
+        z-index: 1;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 16px;
+      }
+
+      .shell {
+        width: 100%;
+        max-width: 920px;
+        display: grid;
+        grid-template-columns: 1fr 420px;
+        gap: 0;
+        background: var(--white);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      @media (max-width: 720px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+        .left {
+          border-right: none;
+          border-bottom: 1px solid var(--line);
+        }
+      }
+
+      /* ── LEFT: subscription detail ── */
+      .left {
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .plan-hero {
+        position: relative;
+        height: 200px;
+        background: linear-gradient(160deg, #2d5a4e 0%, #1a3830 100%);
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .plan-hero-pattern {
+        position: absolute;
+        inset: 0;
+        background-image:
+          radial-gradient(
+            circle at 30% 50%,
+            rgba(200, 169, 110, 0.18) 0%,
+            transparent 60%
+          ),
+          radial-gradient(
+            circle at 80% 20%,
+            rgba(255, 255, 255, 0.06) 0%,
+            transparent 40%
+          );
+      }
+      .plan-badge {
+        position: absolute;
+        top: 20px;
+        left: 24px;
+        background: rgba(200, 169, 110, 0.2);
+        border: 1px solid rgba(200, 169, 110, 0.5);
+        color: var(--accent);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        padding: 5px 12px;
+        border-radius: 20px;
+      }
+      .plan-hero-content {
+        position: absolute;
+        bottom: 24px;
+        left: 24px;
+        right: 24px;
+      }
+      .plan-name {
+        font-family: var(--serif);
+        font-size: 26px;
+        font-weight: 700;
+        color: #fff;
+        line-height: 1.2;
+        margin-bottom: 6px;
+      }
+      .plan-tagline {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.6);
+        font-weight: 300;
+      }
+
+      .plan-body {
+        padding: 28px 28px 24px;
+        flex: 1;
+      }
+
+      .plan-price-row {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        margin-bottom: 24px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--line);
+      }
+      .price-amount {
+        font-family: var(--serif);
+        font-size: 42px;
+        font-weight: 600;
+        color: var(--dark);
+      }
+      .price-currency {
+        font-size: 20px;
+        color: var(--mid);
+        font-weight: 400;
+        margin-top: 6px;
+      }
+      .price-period {
+        font-size: 13px;
+        color: var(--mid);
+        font-weight: 300;
+      }
+
+      .features-title {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: var(--mid);
+        margin-bottom: 14px;
+      }
+      .features-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 11px;
+      }
+      .features-list li {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        color: var(--dark);
+        font-weight: 400;
+      }
+      .feat-icon {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        flex-shrink: 0;
+        background: rgba(45, 90, 78, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+      }
+
+      .plan-footer {
+        padding: 0 28px 28px;
+        font-size: 12px;
+        color: var(--mid);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .plan-footer::before {
+        content: '🔒';
+        font-size: 12px;
+      }
+
+      /* ── RIGHT: payment form ── */
+      .right {
+        padding: 36px 32px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .form-header {
+        margin-bottom: 28px;
+      }
+      .form-header h2 {
+        font-family: var(--serif);
+        font-size: 22px;
+        font-weight: 600;
+        color: var(--dark);
+        margin-bottom: 5px;
+      }
+      .form-header p {
+        font-size: 13px;
+        color: var(--mid);
+        font-weight: 300;
+      }
+
+      /* config section */
+      .config-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 11px 14px;
+        background: #f9f7f4;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        cursor: pointer;
+        margin-bottom: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--mid);
+        transition: border-color 0.2s;
+        user-select: none;
+      }
+      .config-toggle:hover {
+        border-color: var(--accent);
+        color: var(--dark);
+      }
+      .config-toggle svg {
+        transition: transform 0.2s;
+      }
+      .config-toggle.open svg {
+        transform: rotate(180deg);
+      }
+
+      .config-body {
+        display: none;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 20px;
+        padding: 16px;
+        background: #f9f7f4;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+      .config-body.open {
+        display: flex;
+      }
+
+      /* fields */
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .field label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: var(--mid);
+      }
+      input[type='text'] {
+        width: 100%;
+        background: #f9f7f4;
+        border: 1.5px solid var(--line);
+        border-radius: 10px;
+        padding: 11px 14px;
+        font-family: var(--sans);
+        font-size: 13px;
+        color: var(--dark);
+        outline: none;
+        transition:
+          border-color 0.2s,
+          background 0.2s;
+      }
+      input[type='text']:focus {
+        border-color: var(--accent2);
+        background: #fff;
+      }
+      input[type='text']::placeholder {
+        color: #bbb;
+      }
+
+      /* stripe elements */
+      .stripe-wrap {
+        background: #f9f7f4;
+        border: 1.5px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+        transition: border-color 0.2s;
+      }
+      .stripe-wrap.focused {
+        border-color: var(--accent2);
+        background: #fff;
+      }
+
+      .row2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .divider {
+        height: 1px;
+        background: var(--line);
+        margin: 20px 0;
+      }
+
+      /* amount row */
+      .amount-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 16px;
+        background: rgba(45, 90, 78, 0.05);
+        border: 1px solid rgba(45, 90, 78, 0.12);
+        border-radius: 12px;
+        margin-bottom: 20px;
+      }
+      .amount-label {
+        font-size: 13px;
+        color: var(--mid);
+      }
+      .amount-value {
+        font-family: var(--serif);
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--accent2);
+      }
+
+      /* msg */
+      .msg {
+        padding: 11px 14px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 400;
+        margin-bottom: 14px;
+        display: none;
+        line-height: 1.5;
+      }
+      .msg.show {
+        display: block;
+      }
+      .msg.error {
+        background: rgba(217, 79, 79, 0.08);
+        color: var(--red);
+        border: 1px solid rgba(217, 79, 79, 0.2);
+      }
+      .msg.success {
+        background: rgba(45, 140, 106, 0.08);
+        color: var(--green);
+        border: 1px solid rgba(45, 140, 106, 0.2);
+      }
+      .msg.info {
+        background: rgba(200, 169, 110, 0.1);
+        color: #8a6e3a;
+        border: 1px solid rgba(200, 169, 110, 0.3);
+      }
+
+      /* pay button */
+      .btn-pay {
+        width: 100%;
+        padding: 15px;
+        background: var(--accent2);
+        border: none;
+        border-radius: 12px;
+        color: #fff;
+        font-family: var(--sans);
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        transition:
+          background 0.2s,
+          transform 0.1s,
+          opacity 0.2s;
+        letter-spacing: 0.3px;
+      }
+      .btn-pay:hover:not(:disabled) {
+        background: #234a3f;
+      }
+      .btn-pay:active:not(:disabled) {
+        transform: scale(0.98);
+      }
+      .btn-pay:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .spinner {
+        width: 17px;
+        height: 17px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+        display: none;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .secure-note {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        margin-top: 14px;
+        font-size: 12px;
+        color: var(--mid);
+      }
+
+      /* ── success overlay ── */
+      .success-overlay {
+        display: none;
+        position: absolute;
+        inset: 0;
+        background: var(--white);
+        border-radius: var(--radius);
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 40px;
+        z-index: 10;
+        animation: fadeIn 0.4s ease;
+      }
+      .success-overlay.show {
+        display: flex;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: scale(0.97);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      .success-ring {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: rgba(45, 140, 106, 0.1);
+        border: 2px solid var(--green);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 34px;
+        margin-bottom: 24px;
+      }
+      .success-overlay h3 {
+        font-family: var(--serif);
+        font-size: 28px;
+        color: var(--dark);
+        margin-bottom: 10px;
+      }
+      .success-overlay p {
+        font-size: 14px;
+        color: var(--mid);
+        max-width: 300px;
+        line-height: 1.6;
+      }
+      .success-id {
+        margin-top: 14px;
+        font-size: 11px;
+        color: var(--mid);
+        word-break: break-all;
+        background: #f5f3ef;
+        padding: 8px 14px;
+        border-radius: 8px;
+      }
+      .btn-again {
+        margin-top: 28px;
+        padding: 11px 28px;
+        background: transparent;
+        border: 1.5px solid var(--line);
+        border-radius: 10px;
+        font-family: var(--sans);
+        font-size: 14px;
+        color: var(--mid);
+        cursor: pointer;
+        transition:
+          border-color 0.2s,
+          color 0.2s;
+      }
+      .btn-again:hover {
+        border-color: var(--accent2);
+        color: var(--accent2);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell" style="position: relative">
+        <!-- ── LEFT: Subscription Detail ── -->
+        <div class="left">
+          <div class="plan-hero">
+            <div class="plan-hero-pattern"></div>
+            <div class="plan-badge">Car Checker</div>
+            <div class="plan-hero-content">
+              <div class="plan-name" id="planNameDisplay">Pro Subscription</div>
+              <div class="plan-tagline">
+                Full access · All features included
+              </div>
+            </div>
+          </div>
+
+          <div class="plan-body">
+            <div class="plan-price-row">
+              <span class="price-currency">$</span>
+              <span class="price-amount" id="planPriceDisplay">—</span>
+              <span class="price-period">/ one-time</span>
+            </div>
+
+            <div class="features-title">What's included</div>
+            <ul class="features-list">
+              <li>
+                <span class="feat-icon">🔍</span> Full vehicle history report
+              </li>
+              <li>
+                <span class="feat-icon">📋</span> MOT & service record access
+              </li>
+              <li>
+                <span class="feat-icon">⚠️</span> Outstanding finance check
+              </li>
+              <li>
+                <span class="feat-icon">🛡️</span> Stolen vehicle database check
+              </li>
+              <li><span class="feat-icon">📊</span> Valuation & market data</li>
+              <li><span class="feat-icon">📞</span> Priority support access</li>
+            </ul>
+          </div>
+
+          <div class="plan-footer">
+            Secured by Stripe · 256-bit SSL encryption
+          </div>
+        </div>
+
+        <!-- ── RIGHT: Payment Form ── -->
+        <div class="right">
+          <div class="form-header">
+            <h2>Complete Payment</h2>
+            <p>Enter your card details below to activate</p>
+          </div>
+
+          <!-- API Config (collapsible) -->
+          <div class="config-toggle" id="configToggle" onclick="toggleConfig()">
+            <span>⚙ API Config</span>
+            <svg
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              viewBox="0 0 24 24"
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </div>
+          <div class="config-body" id="configBody">
+            <div class="field">
+              <label>Stripe Publishable Key</label>
+              <input id="pubKey" type="text" placeholder="pk_test_..." />
+            </div>
+            <div class="field">
+              <label>Backend URL</label>
+              <input
+                id="baseUrl"
+                type="text"
+                value="http://localhost:3000/api/v1"
+              />
+            </div>
+            <div class="field">
+              <label>JWT Token</label>
+              <input id="jwtToken" type="text" placeholder="eyJhbGci..." />
+            </div>
+            <div class="field">
+              <label>Subscribe Plan ID</label>
+              <input
+                id="subId"
+                type="text"
+                placeholder="MongoDB ObjectId"
+                onblur="fetchPlanPreview()"
+              />
+            </div>
+          </div>
+
+          <!-- Amount row -->
+          <div class="amount-row" id="amountRow" style="display: none">
+            <span class="amount-label">Total due today</span>
+            <span class="amount-value" id="amountDisplay">$0.00</span>
+          </div>
+
+          <!-- Card fields -->
+          <div class="field" style="margin-bottom: 14px">
+            <label>Card Number</label>
+            <div class="stripe-wrap" id="numWrap">
+              <div id="cardNumber"></div>
+            </div>
+          </div>
+          <div class="row2" style="margin-bottom: 14px">
+            <div class="field">
+              <label>Expiry Date</label>
+              <div class="stripe-wrap" id="expWrap">
+                <div id="cardExpiry"></div>
+              </div>
+            </div>
+            <div class="field">
+              <label>CVC</label>
+              <div class="stripe-wrap" id="cvcWrap">
+                <div id="cardCvc"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="msg" class="msg"></div>
+
+          <button class="btn-pay" id="payBtn" onclick="pay()">
+            <span id="payText">Pay Now</span>
+            <div class="spinner" id="spin"></div>
+          </button>
+
+          <div class="secure-note">
+            🔒 &nbsp;Your payment is secured with 256-bit encryption
+          </div>
+        </div>
+
+        <!-- ── SUCCESS overlay ── -->
+        <div class="success-overlay" id="successOverlay">
+          <div class="success-ring">✓</div>
+          <h3>Payment Successful!</h3>
+          <p>
+            Your subscription is now active. You have full access to all Car
+            Checker features.
+          </p>
+          <div class="success-id" id="successId"></div>
+          <button class="btn-again" onclick="resetPage()">← Test Again</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let stripe,
+        elements,
+        cardNumber,
+        cardExpiry,
+        cardCvc,
+        clientSecret = null;
+      let isPaymentProcessing = false;
+
+      // ── init Stripe elements ──────────────────────────────────────────────────
+      function initStripe(pubKey) {
+        if (cardNumber) {
+          try {
+            cardNumber.destroy();
+            cardExpiry.destroy();
+            cardCvc.destroy();
+          } catch (e) {}
+        }
+
+        try {
+          stripe = Stripe(pubKey);
+          elements = stripe.elements();
+          const style = {
+            base: {
+              color: '#1a1814',
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: '14px',
+              fontWeight: '400',
+              '::placeholder': { color: '#bbb' },
+            },
+            invalid: { color: '#d94f4f' },
+          };
+
+          cardNumber = elements.create('cardNumber', { style, showIcon: true });
+          cardExpiry = elements.create('cardExpiry', { style });
+          cardCvc = elements.create('cardCvc', { style });
+
+          cardNumber.mount('#cardNumber');
+          cardExpiry.mount('#cardExpiry');
+          cardCvc.mount('#cardCvc');
+
+          const pairs = [
+            [cardNumber, 'numWrap'],
+            [cardExpiry, 'expWrap'],
+            [cardCvc, 'cvcWrap'],
+          ];
+          pairs.forEach(([el, id]) => {
+            el.on('focus', () =>
+              document.getElementById(id).classList.add('focused'),
+            );
+            el.on('blur', () =>
+              document.getElementById(id).classList.remove('focused'),
+            );
+            el.on('change', ({ error }) => {
+              if (error) {
+                showMsg('error', error.message);
+              } else {
+                showMsg('', '');
+              }
+            });
+          });
+        } catch (err) {
+          showMsg('error', `Stripe initialization error: ${err.message}`);
+        }
+      }
+
+      // Auto-init on key input
+      document.addEventListener('DOMContentLoaded', () => {
+        const pubKeyInput = document.getElementById('pubKey');
+        if (pubKeyInput) {
+          pubKeyInput.addEventListener('change', () => {
+            const k = pubKeyInput.value.trim();
+            if (k && k.startsWith('pk_')) {
+              initStripe(k);
+              showMsg('success', 'Stripe key loaded successfully');
+            } else if (k) {
+              showMsg('error', 'Invalid Stripe key format');
+            }
+          });
+        }
+      });
+
+      // ── config toggle ─────────────────────────────────────────────────────────
+      function toggleConfig() {
+        const toggle = document.getElementById('configToggle');
+        const body = document.getElementById('configBody');
+        if (toggle && body) {
+          toggle.classList.toggle('open');
+          body.classList.toggle('open');
+        }
+      }
+
+      // Open config on load
+      window.addEventListener('load', () => {
+        const toggle = document.getElementById('configToggle');
+        const body = document.getElementById('configBody');
+        if (toggle && body) {
+          toggle.classList.add('open');
+          body.classList.add('open');
+        }
+      });
+
+      // ── fetch plan preview (optional, to show name/price) ────────────────────
+      async function fetchPlanPreview() {
+        try {
+          const baseUrl = document
+            .getElementById('baseUrl')
+            .value.trim()
+            .replace(/\/$/, '');
+          const token = document.getElementById('jwtToken').value.trim();
+          const subId = document.getElementById('subId').value.trim();
+
+          if (!subId || !baseUrl) {
+            return;
+          }
+
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+
+          const res = await fetch(`${baseUrl}/subscribe/${subId}`, {
+            method: 'GET',
+            headers,
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            const plan = data?.data || data;
+
+            if (plan.name) {
+              document.getElementById('planNameDisplay').textContent =
+                plan.name;
+            }
+            if (plan.price) {
+              document.getElementById('planPriceDisplay').textContent = Number(
+                plan.price,
+              ).toFixed(2);
+            }
+          }
+        } catch (e) {
+          // Silently fail - preview is optional
+          console.log('Plan preview unavailable');
+        }
+      }
+
+      // ── PAY ───────────────────────────────────────────────────────────────────
+      async function pay() {
+        if (isPaymentProcessing) return;
+
+        const pubKey = document.getElementById('pubKey').value.trim();
+        const baseUrl = document
+          .getElementById('baseUrl')
+          .value.trim()
+          .replace(/\/$/, '');
+        const token = document.getElementById('jwtToken').value.trim();
+        const subId = document.getElementById('subId').value.trim();
+
+        // Validation
+        if (!pubKey || !subId) {
+          openConfig();
+          showMsg('error', 'API Config এ Publishable Key ও Subscribe ID দাও');
+          return;
+        }
+        if (!pubKey.startsWith('pk_')) {
+          showMsg(
+            'error',
+            'Invalid Stripe key - must start with pk_test_ or pk_live_',
+          );
+          return;
+        }
+        if (!baseUrl) {
+          showMsg('error', 'Backend URL required in API Config');
+          return;
+        }
+
+        if (!stripe) {
+          initStripe(pubKey);
+        }
+
+        isPaymentProcessing = true;
+        setLoading(true);
+        showMsg('', '');
+
+        try {
+          // 1. Get clientSecret from backend
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+
+          const res = await fetch(`${baseUrl}/payment/${subId}`, {
+            method: 'POST',
+            headers,
+          });
+
+          if (!res.ok) {
+            const data = await res.json();
+            showMsg(
+              'error',
+              data?.message ?? `Error: ${res.status} ${res.statusText}`,
+            );
+            return;
+          }
+
+          const data = await res.json();
+          clientSecret = data?.data?.clientSecret ?? data?.clientSecret;
+          const amount = data?.data?.amount ?? data?.amount;
+
+          if (!clientSecret) {
+            showMsg(
+              'error',
+              'clientSecret পাওয়া যায়নি — backend response চেক করো',
+            );
+            return;
+          }
+
+          // Update amount display
+          if (amount) {
+            document.getElementById('amountDisplay').textContent =
+              `$${Number(amount).toFixed(2)}`;
+            document.getElementById('planPriceDisplay').textContent =
+              Number(amount).toFixed(2);
+            document.getElementById('amountRow').style.display = 'flex';
+          }
+
+          showMsg('info', 'Processing payment...');
+
+          // 2. Confirm card payment using newer confirmPayment API
+          const { error, paymentIntent } = await stripe.confirmCardPayment(
+            clientSecret,
+            {
+              payment_method: { card: cardNumber },
+            },
+          );
+
+          if (error) {
+            showMsg('error', error.message || 'Payment processing failed');
+          } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+            document.getElementById('successId').textContent =
+              `PaymentIntent: ${paymentIntent.id}`;
+            document.getElementById('successOverlay').classList.add('show');
+            showMsg('success', 'Payment successful!');
+          } else if (paymentIntent) {
+            showMsg('info', `Payment status: ${paymentIntent.status}`);
+          }
+        } catch (e) {
+          console.error('Payment error:', e);
+          showMsg('error', `Error: ${e.message}`);
+        } finally {
+          isPaymentProcessing = false;
+          setLoading(false);
+        }
+      }
+
+      function openConfig() {
+        const toggle = document.getElementById('configToggle');
+        const body = document.getElementById('configBody');
+        if (toggle && body) {
+          toggle.classList.add('open');
+          body.classList.add('open');
+        }
+      }
+
+      function setLoading(on) {
+        const payBtn = document.getElementById('payBtn');
+        const payText = document.getElementById('payText');
+        const spin = document.getElementById('spin');
+
+        if (payBtn) payBtn.disabled = on;
+        if (payText) payText.style.display = on ? 'none' : 'inline';
+        if (spin) spin.style.display = on ? 'block' : 'none';
+      }
+
+      function showMsg(type, text) {
+        const el = document.getElementById('msg');
+        if (!el) return;
+
+        if (!type) {
+          el.className = 'msg';
+          el.textContent = '';
+          return;
+        }
+        el.className = `msg show ${type}`;
+        el.textContent = text;
+      }
+
+      function resetPage() {
+        const successOverlay = document.getElementById('successOverlay');
+        if (successOverlay) {
+          successOverlay.classList.remove('show');
+        }
+        clientSecret = null;
+        isPaymentProcessing = false;
+        const k = document.getElementById('pubKey').value.trim();
+        if (k && k.startsWith('pk_')) {
+          initStripe(k);
+        }
+        showMsg('', '');
+        const amountRow = document.getElementById('amountRow');
+        if (amountRow) {
+          amountRow.style.display = 'none';
+        }
+      }
+    </script>
+  </body>
+</html>

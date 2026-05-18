@@ -1,0 +1,105 @@
+# ============================================================
+# Docker Compose for local/production-like running
+# ============================================================
+# Local API run:
+# docker compose up -d --build app
+#
+# Local API + MongoDB run:
+# docker compose --profile local up -d --build
+#
+# Production VPS-e GitHub Actions ei same style compose generate kore.
+# ============================================================
+
+services:
+  # ------------------------------------------------------------
+  # NestJS API service
+  # ------------------------------------------------------------
+  app:
+    # Local default image. Production-e DOCKER_IMAGE set hobe:
+    # DOCKER_IMAGE=your-dockerhub-username/your-image:latest
+    image: ${DOCKER_IMAGE:-nestjs-boilerplate-mongodb:local}
+
+    # Local machine-e image build korte eta use hoy.
+    # Production deploy-e prebuilt Docker Hub image pull kora hoy.
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+
+    # Container name easy identify korar jonno
+    container_name: ${APP_CONTAINER_NAME:-nestjs_boilerplate_api}
+
+    # Server restart hole container auto start hobe
+    restart: unless-stopped
+
+    # Main env file. Ei file local-e .env hobe.
+    env_file:
+      - .env
+
+    # Important runtime env. .env theke na pele default use korbe.
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-5000}
+
+    # Host:Container port mapping
+    # Example: APP_PORT=5000 and PORT=5000 => localhost:5000
+    ports:
+      - '${APP_PORT:-5000}:${PORT:-5000}'
+
+    networks:
+      - backend_network
+
+    # App healthy kina Docker check korbe
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:' + (process.env.PORT || 5000)).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ------------------------------------------------------------
+  # Optional local MongoDB service
+  # ------------------------------------------------------------
+  # Production-e recommended: MongoDB Atlas / managed MongoDB.
+  # Local-e MongoDB container use korte:
+  # docker compose --profile local up -d --build
+  #
+  # Tokhon .env-e MONGO_URI eta use korben:
+  # MONGO_URI=mongodb://mongo:27017/nestjs_boilerplate
+  # ------------------------------------------------------------
+  mongo:
+    image: mongo:7
+    container_name: ${MONGO_CONTAINER_NAME:-nestjs_boilerplate_mongo}
+    restart: unless-stopped
+
+    # Profile chara mongo run hobe na. Eta local development-er jonno.
+    profiles:
+      - local
+
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-nestjs_boilerplate}
+
+    ports:
+      - '${MONGO_PORT:-27017}:27017'
+
+    # MongoDB data persist rakhar jonno named volume
+    volumes:
+      - mongo_data:/data/db
+
+    networks:
+      - backend_network
+
+# App and Mongo same private docker network-e thakbe
+networks:
+  backend_network:
+    driver: bridge
+
+# MongoDB local data ekhane store hobe
+volumes:
+  mongo_data:
